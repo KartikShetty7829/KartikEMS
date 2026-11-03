@@ -1,0 +1,147 @@
+# ==============================================================================
+# EMS Backend - CI/CD Pipeline
+# ==============================================================================
+# This workflow:
+#   1. Builds & tests all 4 .NET services
+#   2. Builds Docker images for each service
+#   3. Pushes images to Azure Container Registry (ACR)
+#   4. Deploys to Azure App Service (Web App for Containers)
+#
+# TRIGGERS: Push to 'main' or 'develop', and Pull Requests to 'main'
+# ==============================================================================
+
+name: EMS Backend CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  # -- Azure Container Registry --
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}     # e.g. yourregistry.azurecr.io
+  ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+  ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+
+jobs:
+  # ============================================================================
+  # JOB 1: Build & Test all services
+  # ============================================================================
+  build-and-test:
+    name: 🔨 Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: 📦 Restore dependencies
+        run: dotnet restore EmployeeManagementSystem.slnx
+
+      - name: 🔨 Build solution
+        run: dotnet build EmployeeManagementSystem.slnx --configuration Release --no-restore
+
+      # Uncomment below when you add unit test projects
+      # - name: 🧪 Run tests
+      #   run: dotnet test EmployeeManagementSystem.slnx --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+
+  # ============================================================================
+  # JOB 2: Build & Push Docker Images to ACR
+  # ============================================================================
+  docker-build-push:
+    name: 🐳 Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    strategy:
+      matrix:
+        include:
+          - service: ApiGateway
+            dockerfile: ApiGateway/Dockerfile
+            image-name: ems-api-gateway
+
+          - service: EmployeeService
+            dockerfile: EmployeeService/Dockerfile
+            image-name: ems-employee-service
+
+          - service: AttendancePayrollService
+            dockerfile: AttendancePayrollService/Dockerfile
+            image-name: ems-attendance-service
+
+          - service: IdentityService
+            dockerfile: IdentityService/Dockerfile
+            image-name: ems-identity-service
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔐 Login to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ACR_LOGIN_SERVER }}
+          username: ${{ env.ACR_USERNAME }}
+          password: ${{ env.ACR_PASSWORD }}
+
+      - name: 🏗️ Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🐳 Build & Push ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.image-name }}:${{ github.sha }}
+            ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.image-name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================================================
+  # JOB 3: Deploy to Azure App Service
+  # ============================================================================
+  deploy:
+    name: 🚀 Deploy to Azure
+    runs-on: ubuntu-latest
+    needs: docker-build-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    strategy:
+      matrix:
+        include:
+          - service: ApiGateway
+            image-name: ems-api-gateway
+            app-name: EMS_GATEWAY_APP_NAME           # GitHub Secret for App Service name
+
+          - service: EmployeeService
+            image-name: ems-employee-service
+            app-name: EMS_EMPLOYEE_APP_NAME
+
+          - service: AttendancePayrollService
+            image-name: ems-attendance-service
+            app-name: EMS_ATTENDANCE_APP_NAME
+
+          - service: IdentityService
+            image-name: ems-identity-service
+            app-name: EMS_IDENTITY_APP_NAME
+
+    steps:
+      - name: 🔐 Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: 🚀 Deploy ${{ matrix.service }} to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets[matrix.app-name] }}
+          images: ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.image-name }}:${{ github.sha }}

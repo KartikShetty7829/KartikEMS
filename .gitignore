@@ -1,0 +1,80 @@
+## .NET / Visual Studio
+*.swp
+*.*~
+project.lock.json
+.DS_Store
+*.pyc
+nupkg/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+[Tt]est[Rr]esults/
+TestResults/
+
+# NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+project.lock.json
+
+# Rider
+.idea/
+*.sln.iml
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Publish
+publish/
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Application-specific
+appsettings.Development.json
+appsettings.Production.json
+appsettings.Local.json
+*.pfx
+*.pem
+
+# Docker
+.docker/
+
+# Log files
+**/logger/*.txt
+**/Logs/
+
+# Uploaded files (runtime content)
+**/wwwroot/uploads/
+
+# Launch settings (user-specific)
+EmployeeManagementSystem.slnLaunch.user

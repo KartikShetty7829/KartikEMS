@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  # ---- SQL Server Database ----
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: ems-sqlserver
+    environment:
+      SA_PASSWORD: "YourStrong!Passw0rd"
+      ACCEPT_EULA: "Y"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    networks:
+      - ems-network
+
+  # ---- Identity Service ----
+  identity-service:
+    build:
+      context: .
+      dockerfile: IdentityService/Dockerfile
+    container_name: ems-identity-service
+    ports:
+      - "5050:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=IdentityDb;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True
+    depends_on:
+      - sqlserver
+    networks:
+      - ems-network
+
+  # ---- Employee Service ----
+  employee-service:
+    build:
+      context: .
+      dockerfile: EmployeeService/Dockerfile
+    container_name: ems-employee-service
+    ports:
+      - "5070:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=EmployeeDb;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True
+    depends_on:
+      - sqlserver
+    networks:
+      - ems-network
+
+  # ---- Attendance & Payroll Service ----
+  attendance-service:
+    build:
+      context: .
+      dockerfile: AttendancePayrollService/Dockerfile
+    container_name: ems-attendance-service
+    ports:
+      - "5090:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=AttendanceDb;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True
+    depends_on:
+      - sqlserver
+    networks:
+      - ems-network
+
+  # ---- API Gateway ----
+  api-gateway:
+    build:
+      context: .
+      dockerfile: ApiGateway/Dockerfile
+    container_name: ems-api-gateway
+    ports:
+      - "8081:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    depends_on:
+      - identity-service
+      - employee-service
+      - attendance-service
+    networks:
+      - ems-network
+
+  # ---- Zookeeper ----
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: ems-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - ems-network
+
+  # ---- Kafka ----
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: ems-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    depends_on:
+      - zookeeper
+    networks:
+      - ems-network
+
+volumes:
+  sqlserver-data:
+
+networks:
+  ems-network:
+    driver: bridge

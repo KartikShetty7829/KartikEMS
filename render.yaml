@@ -1,0 +1,66 @@
+services:
+  # 1. Identity Service
+  - type: web
+    name: ems-identity-service
+    runtime: docker
+    dockerfilePath: ./IdentityService/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: PORT
+        value: "8080"
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+
+  # 2. Employee Service
+  - type: web
+    name: ems-employee-service
+    runtime: docker
+    dockerfilePath: ./EmployeeService/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: PORT
+        value: "8080"
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: UserService__BaseUrl
+        value: https://ems-identity-service.onrender.com
+
+  # 3. Attendance & Payroll Service
+  - type: web
+    name: ems-attendance-service
+    runtime: docker
+    dockerfilePath: ./AttendancePayrollService/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: PORT
+        value: "8080"
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: EmployeeService__BaseUrl
+        value: https://ems-employee-service.onrender.com/
+
+  # 4. API Gateway
+  - type: web
+    name: ems-api-gateway
+    runtime: docker
+    dockerfilePath: ./ApiGateway/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: PORT
+        value: "8080"
